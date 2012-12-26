@@ -780,6 +780,16 @@ class ProfileType extends Entity {
     }
     return $this->$property;
   }
+
+  /**
+   * Overrides Entity::save().
+   */
+  public function save() {
+    parent::save();
+    // Clear field info caches such that any changes to extra fields get
+    // reflected.
+    field_info_cache_clear();
+  }
 }
 
 /**
@@ -830,6 +840,34 @@ function profile2_field_access($op, $field, $entity_type, $profile = NULL, $acco
       return FALSE;
     }
   }
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ *
+ * We need to add pseudo fields for profile types to allow for weight settings
+ * when viewing a user or filling in the profile types while registrating.
+ */
+function profile2_field_extra_fields() {
+  $extra = array();
+  foreach (profile2_get_types() as $type_name => $type) {
+    // Appears on: admin/config/people/accounts/display
+    if (!empty($type->userView)) {
+      $extra['user']['user']['display']['profile_' . $type_name] = array(
+        'label' => t('Profile: @profile', array('@profile' => $type->label)),
+        'weight' => $type->weight,
+      );
+    }
+    // Appears on: admin/config/people/accounts/fields
+    if (!empty($type->data['registration'])) {
+      $extra['user']['user']['form']['profile_' . $type_name] = array(
+        'label' => t('Profile: @profile', array('@profile' => $type->label)),
+        'description' => t('Appears during registration only.'),
+        'weight' => $type->weight,
+      );
+    }
+  }
+  return $extra;
 }
 
 /**
