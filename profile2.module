@@ -377,6 +377,20 @@ function profile2_form_user_register_form_alter(&$form, &$form_state) {
 }
 
 /**
+ * Implements hook_module_implements_alter().
+ *
+ * Ensure that execution of profile2_form_user_register_form_alter()
+ * is happens after all other implementations of hook_form_FORM_ID_alter().
+ */
+function profile2_module_implements_alter(&$implementations, $hook) {
+  if ($hook == 'form_alter' && isset($implementations['profile2'])) {
+    $group = $implementations['profile2'];
+    unset($implementations['profile2']);
+    $implementations['profile2'] = $group;
+  }
+}
+
+/**
  * Attaches the profile forms of the profiles set in
  * $form_state['profiles'].
  *
@@ -416,7 +430,41 @@ function profile2_attach_form(&$form, &$form_state) {
     }
   }
   $form['#validate'][] = 'profile2_form_validate_handler';
-  $form['#submit'][] = 'profile2_form_submit_handler';
+
+  // Default name of user registry form callback.
+  $register_submit_callback = 'user_register_submit';
+
+  // LoginToBoggan module replaces default user_register_submit() callback
+  // with his own. So if this module enabled we need to track his callback
+  // instead one that comes from the User module.
+  if (module_exists('logintoboggan')) {
+    $register_submit_callback = 'logintoboggan_user_register_submit';
+  }
+
+  // Search for key of user register submit callback.
+  if (!empty($form['#submit']) && is_array($form['#submit'])) {
+    $submit_key = array_search($register_submit_callback, $form['#submit']);
+  }
+
+  if (isset($submit_key) && $submit_key !== FALSE) {
+
+    // Insert submit callback right before the user register submit callback.
+    // Needs for disabling email notification during user registration.
+    array_splice($form['#submit'], $submit_key, 0, array('profile2_form_before_user_register_submit_handler'));
+
+    // Add a submit callback right after the user register submit callback.
+    // This is needed for creation of a new user profile.
+    array_splice($form['#submit'], $submit_key + 2, 0, array('profile2_form_submit_handler'));
+
+    // Insert submit handler right after the creation of new user profile.
+    // This is needed for sending email which was blocked during registration.
+    array_splice($form['#submit'], $submit_key + 3, 0, array('profile2_form_after_user_register_submit_handler'));
+  }
+  else {
+    // Fallback if some contrib module removes user register submit callback
+    // from form submit functions.
+    $form['#submit'][] = 'profile2_form_submit_handler';
+  }
 }
 
 /**
@@ -432,6 +480,95 @@ function profile2_form_validate_handler(&$form, &$form_state) {
       $pseudo_entity->type = $type;
       field_attach_form_validate('profile2', $pseudo_entity, $form['profile_' . $profile->type], $form_state);
     }
+  }
+}
+
+/**
+ * User registration form submit handler
+ * that executes right before user_register_submit().
+ *
+ * In generally, this callback disables the notification emails
+ * during the execution of user_register_submit() callback.
+ * The reason for this - we want to support profile2 tokens
+ * in emails during registration, and there is no another
+ * proper way to do this. See https://drupal.org/node/1097684.
+ *
+ * @see profile2_form_after_user_register_submit_handler()
+ * @see user_register_submit()
+ * @see profile2_attach_form()
+ */
+function profile2_form_before_user_register_submit_handler(&$form, &$form_state) {
+  global $conf;
+
+  // List of available operations during the registration.
+  $register_ops = array('register_admin_created', 'register_no_approval_required', 'register_pending_approval');
+
+  // We also have to track if we change a variables, because
+  // later we have to restore them.
+  $changed_ops = &drupal_static('profile2_register_changed_operations', array());
+  foreach ($register_ops as $op) {
+
+    // Save variable value.
+    if (isset($conf['user_mail_' . $op . '_notify'])) {
+      $changed_ops['user_mail_' . $op . '_notify'] = $conf['user_mail_' . $op . '_notify'];
+    }
+
+    // Temporary disable the notification about registration.
+    $conf['user_mail_' . $op . '_notify'] = FALSE;
+  }
+}
+
+/**
+ * User registration form submit handler
+ * that executes right after user_register_submit().
+ *
+ * This callback sends delayed email notification to a user
+ * about his registration. See https://drupal.org/node/1097684.
+ *
+ * @see profile2_form_prepare_user_register_submit_handler()
+ * @see user_register_submit()
+ * @see profile2_attach_form()
+ */
+function profile2_form_after_user_register_submit_handler(&$form, &$form_state) {
+  global $conf;
+
+  // List of registration operations that where
+  // notification values were changed.
+  $changed_ops = &drupal_static('profile2_register_changed_operations', array());
+
+  // List of available operations during the registration.
+  $register_ops = array('register_admin_created', 'register_no_approval_required', 'register_pending_approval');
+  foreach ($register_ops as $op) {
+
+    // If we changed the notification value in
+    // profile2_form_before_user_register_submit_handler() then change it back.
+    if (isset($changed_ops['user_mail_' . $op . '_notify'])) {
+      $conf['user_mail_' . $op . '_notify'] = $changed_ops['user_mail_' . $op . '_notify'];
+    }
+    // Otherwise just remove this value from a global variables array.
+    else {
+      unset($conf['user_mail_' . $op . '_notify']);
+    }
+  }
+
+  // Get the values that we need to define which notification
+  // should be sent to the user. Generally this is a trimmed version
+  // of user_register_submit() callback.
+  $admin = !empty($form_state['values']['administer_users']);
+  $account = $form_state['user'];
+  $notify = !empty($form_state['values']['notify']);
+
+  if (!$admin && !variable_get('user_email_verification', TRUE) && $account->status) {
+    _user_mail_notify('register_no_approval_required', $account);
+  }
+  // No administrator approval required.
+  elseif ($account->status || $notify) {
+    $op = $notify ? 'register_admin_created' : 'register_no_approval_required';
+    _user_mail_notify($op, $account);
+  }
+  // Administrator approval required.
+  elseif (!$admin && $notify) {
+    _user_mail_notify('register_pending_approval', $account);
   }
 }
 
