@@ -967,7 +967,7 @@ function profile2_view($profile, $view_mode = 'full', $langcode = NULL, $page = 
  * profiles.
  */
 function profile2_form_field_ui_field_edit_form_alter(&$form, &$form_state) {
-  if ($form['instance']['entity_type']['#value'] == 'profile2') {
+  if (!empty($form['instance']['entity_type']['#value']) && $form['instance']['entity_type']['#value'] == 'profile2') {
     $form['field']['settings']['profile2_private'] = array(
       '#type' => 'checkbox',
       '#title' => t('Make the content of this field private.'),
