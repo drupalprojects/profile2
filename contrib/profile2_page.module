@@ -187,6 +187,12 @@ function profile2_page_entity_info_alter(&$entity_info) {
   );
   $entity_info['profile2']['uri callback'] = 'profile2_page_uri_callback';
   $entity_info['profile2']['form callback'] = 'profile2_page_form_callback';
+
+  // Integrate with Metatag module to enable metatags support for separate
+  // profile pages.
+  if (module_exists('metatag')) {
+    $entity_info['profile2']['metatags'] = TRUE;
+  }
 }
 
 /**
