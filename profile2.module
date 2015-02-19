@@ -589,7 +589,7 @@ function profile2_form_after_user_register_submit_handler(&$form, &$form_state) 
     _user_mail_notify($op, $account);
   }
   // Administrator approval required.
-  elseif (!$admin && $notify) {
+  elseif (!$admin) {
     _user_mail_notify('register_pending_approval', $account);
   }
 }
