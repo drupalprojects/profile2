@@ -155,7 +155,12 @@ function profile2_page_forms($form_id, $args) {
       $forms['profile2_edit_' . $bundle . '_form']['callback'] = 'profile2_form';
       $forms['profile2_edit_' . $bundle . '_form']['wrapper callback'] = 'entity_ui_form_defaults';
     }
-    return $forms;
+    if (!empty($forms)) {
+      // Include the file with profile2_form() callback. This needed when the
+      // form is loaded from the outside, for example, from the ajax callback.
+      form_load_include($form_state, 'inc', 'profile2_page');
+      return $forms;
+    }
   }
 }
 
