@@ -580,7 +580,11 @@ function profile2_form_after_user_register_submit_handler(&$form, &$form_state) 
   $account = $form_state['user'];
   $notify = !empty($form_state['values']['notify']);
 
-  if (!$admin && !variable_get('user_email_verification', TRUE) && $account->status) {
+  if ($admin && !$notify) {
+    // If admin has created a new account and decided to don't notify a user -
+    // then just do nothing.
+  }
+  elseif (!$admin && !variable_get('user_email_verification', TRUE) && $account->status) {
     _user_mail_notify('register_no_approval_required', $account);
   }
   // No administrator approval required.
