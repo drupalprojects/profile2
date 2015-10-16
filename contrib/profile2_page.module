@@ -27,7 +27,7 @@ function profile2_page_menu() {
         'page callback' => 'profile2_page_own',
         'page arguments' => array($path),
         'access callback' => 'user_access',
-        'access arguments' => array("edit own $type_name profile"),
+        'access arguments' => array("view own $type_name profile"),
         'file' => 'profile2_page.inc',
         'menu_name' => 'user-menu',
       );
