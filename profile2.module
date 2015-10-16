@@ -388,8 +388,15 @@ function profile2_form_user_register_form_alter(&$form, &$form_state) {
       if (empty($form_state['profiles'][$type_name])) {
         $form_state['profiles'][$type_name] = profile2_create(array('type' => $type_name));
       }
-      profile2_attach_form($form, $form_state);
-      // Wrap each profile form in a fieldset.
+    }
+  }
+
+  // If we have profiles to attach to the registration form - then do it.
+  if (!empty($form_state['profiles'])) {
+    profile2_attach_form($form, $form_state);
+
+    // Wrap each profile form in a fieldset.
+    foreach ($form_state['profiles'] as $type_name => $profile_type) {
       $form['profile_' . $type_name] += array(
         '#type' => 'fieldset',
         '#title' => check_plain($profile_type->getTranslation('label')),
