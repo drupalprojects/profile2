@@ -234,24 +234,17 @@ function profile2_load_by_user($account, $type_name = NULL) {
   $uid = is_object($account) ? $account->uid : $account;
 
   if (!isset($cache[$uid])) {
-    if (empty($type_name)) {
-      $profiles = profile2_load_multiple(FALSE, array('uid' => $uid));
-      // Cache ids for further lookups.
-      $cache[$uid] = array();
-      foreach ($profiles as $pid => $profile) {
-        $cache[$uid][$profile->type] = $pid;
-      }
-      return $profiles ? array_combine(array_keys($cache[$uid]), $profiles) : array();
-    }
     $cache[$uid] = db_select('profile', 'p')
       ->fields('p', array('type', 'pid'))
       ->condition('uid', $uid)
       ->execute()
       ->fetchAllKeyed();
   }
+
   if (isset($type_name)) {
     return isset($cache[$uid][$type_name]) ? profile2_load($cache[$uid][$type_name]) : FALSE;
   }
+
   // Return an array containing profiles keyed by profile type.
   return $cache[$uid] ? array_combine(array_keys($cache[$uid]), profile2_load_multiple($cache[$uid])) : $cache[$uid];
 }
@@ -914,13 +907,12 @@ class Profile extends Entity {
     }
     $this->changed = REQUEST_TIME;
 
-    $result = parent::save();
-    // Update the static cache from profile2_load_by_user().
+    // Clear the static cache from profile2_load_by_user() before saving, so
+    // that profiles are correctly loaded in insert/update hooks.
     $cache = &drupal_static('profile2_load_by_user', array());
-    if (isset($cache[$this->uid])) {
-      $cache[$this->uid][$this->type] = $this->pid;
-    }
-    return $result;
+    unset($cache[$this->uid]);
+
+    return parent::save();
   }
 }
 
