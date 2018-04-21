@@ -399,25 +399,6 @@ function profile2_form_user_register_form_alter(&$form, &$form_state) {
 }
 
 /**
- * Implements hook_module_implements_alter().
- *
- * Ensure that execution of profile2_form_user_register_form_alter()
- * is happens after all other implementations of hook_form_FORM_ID_alter().
- */
-function profile2_module_implements_alter(&$implementations, $hook) {
-  if ($hook == 'form_alter' && isset($implementations['profile2'])) {
-    $group = $implementations['profile2'];
-    unset($implementations['profile2']);
-    $implementations['profile2'] = $group;
-    if (isset($implementations['inline_entity_form'])) {
-      $group = $implementations['inline_entity_form'];
-      unset($implementations['inline_entity_form']);
-      $implementations['inline_entity_form'] = $group;
-    }
-  }
-}
-
-/**
  * Attaches the profile forms of the profiles set in
  * $form_state['profiles'].
  *
@@ -474,7 +455,8 @@ function profile2_attach_form(&$form, &$form_state) {
     $submit_key = array_search($register_submit_callback, $form['#submit']);
   }
 
-  if (isset($submit_key) && $submit_key !== FALSE) {
+  // Add these hooks only when needed, and ensure they are not added twice.
+  if (isset($submit_key) && $submit_key !== FALSE && !in_array('profile2_form_before_user_register_submit_handler', $form['#submit'])) {
 
     // Insert submit callback right before the user register submit callback.
     // Needs for disabling email notification during user registration.
