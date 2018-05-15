@@ -114,25 +114,6 @@ function profile2_page_menu() {
 }
 
 /**
- * Menu load callback.
- *
- * Returns the profile object for the given user. If there is none yet, a new
- * object is created.
- */
-function profile2_by_uid_load($uid, $type_name) {
-  if ($uid && is_numeric($uid) && ($account = user_load($uid))) {
-    $profile = profile2_load_by_user($account, $type_name);
-    if (!$profile) {
-      $profile = profile2_create(array('type' => $type_name));
-      $profile->setUser($account);
-      $profile->is_new = TRUE;
-    }
-    return $profile;
-  }
-  return FALSE;
-}
-
-/**
  * Returns the base path to use as profile page.
  */
 function profile2_page_get_base_path($profile_type) {

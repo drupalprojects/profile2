@@ -124,6 +124,17 @@ function profile2_menu() {
     );
   }
 
+  $items['user/%profile2_by_uid/%/delete'] = array(
+    'title' => 'Delete',
+    'description' => 'Delete Profile of User.',
+    'type' => MENU_NORMAL_ITEM,
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('profile2_delete_confirm_form', 1),
+    'load arguments' => array(2),
+    'access callback' => 'profile2_access',
+    'access arguments' => array('delete', 1),
+    'file' => 'profile2.delete.inc',
+  );
   return $items;
 }
 
@@ -156,6 +167,9 @@ function profile2_permission() {
       ),
       "view any $type_name profile" => array(
         'title' => t('%type_name: View any profile', array('%type_name' => $type->getTranslation('label'))),
+      ),
+      "delete own $type_name profile" => array(
+        'title' => t('%type_name: Delete own profile', array('%type_name' => $type->getTranslation('label'))),
       ),
     );
   }
@@ -360,15 +374,43 @@ function profile2_user_view($account, $view_mode, $langcode) {
  * @see profile2_form_submit_handler
  */
 function profile2_form_user_profile_form_alter(&$form, &$form_state) {
+  global $user;
   if (($type = profile2_get_types($form['#user_category'])) && $type->userCategory) {
     if (empty($form_state['profiles'])) {
       $profile = profile2_load_by_user($form['#user'], $form['#user_category']);
       if (empty($profile)) {
         $profile = profile2_create(array('type' => $form['#user_category'], 'uid' => $form['#user']->uid));
+        $profile->is_new = TRUE;
       }
       $form_state['profiles'][$profile->type] = $profile;
+
+      if (user_access('administer profiles') && $user->uid != $profile->uid) {
+        $str_button_value = t('Delete profile');
+      }
+      elseif (user_access("delete own $profile->type profile") && $user->uid === $profile->uid) {
+        $str_button_value = t('Delete this profile');
+      }
+    }
+    if (empty($profile->is_new) && !empty($str_button_value)) {
+      $form['actions']['delete'] = array(
+        '#type' => 'submit',
+        '#value' => $str_button_value,
+        '#weight' => 45,
+        '#limit_validation_errors' => array(),
+        '#submit' => array('profile2_form_submit_own_delete')
+      );
     }
     profile2_attach_form($form, $form_state);
+  }
+}
+
+/**
+ * Profile form submit handler for the delete button.
+ */
+function profile2_form_submit_own_delete($form, &$form_state) {
+  $profile = $form_state['profiles'][$form['#user_category']];
+  if (isset($profile) && is_object($profile)) {
+    $form_state['redirect'] = 'user/' . $profile->uid . '/' . $form['#user_category'] . '/delete';
   }
 }
 
@@ -723,8 +765,7 @@ function profile2_access($op, $profile = NULL, $account = NULL) {
  * Implements hook_profile2_access().
  */
 function profile2_profile2_access($op, $profile = NULL, $account = NULL) {
-  // Don't grant access for users to delete their profile.
-  if (isset($profile) && ($type_name = $profile->type) && $op != 'delete') {
+  if (isset($profile) && ($type_name = $profile->type)) {
     if (user_access("$op any $type_name profile", $account)) {
       return TRUE;
     }
@@ -1066,4 +1107,31 @@ function profile2_ctools_plugin_directory($owner, $plugin_type) {
  */
 function profile2_preprocess_ctools_context_item_form(&$vars) {
   unset($vars['form']['buttons']['relationship']['item']['#options']['entity_from_schema:uid-user-profile2']);
+}
+
+/**
+ * Determines whether the given user has access to delete a profile.
+*/
+function profile2_delete_access($uid, $type_name) {
+  $profile = profile2_by_uid_load($uid, $type_name);
+  return is_object($profile) ? profile2_access('edit', $profile) : FALSE;
+}
+
+/**
+ * Menu load callback.
+ *
+ * Returns the profile object for the given user. If there is none yet, a new
+ * object is created.
+ */
+function profile2_by_uid_load($uid, $type_name) {
+  if ($uid && is_numeric($uid) && ($account = user_load($uid))) {
+    $profile = profile2_load_by_user($account, $type_name);
+    if (!$profile) {
+      $profile = profile2_create(array('type' => $type_name));
+      $profile->setUser($account);
+      $profile->is_new = TRUE;
+    }
+    return $profile;
+  }
+  return FALSE;
 }
