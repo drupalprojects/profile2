@@ -471,6 +471,9 @@ function profile2_attach_form(&$form, &$form_state) {
       }
     }
 
+    // Make sure we don't have duplicate pre render callbacks.
+    $form['profile_' . $profile->type]['#pre_render'] = array_unique($form['profile_' . $profile->type]['#pre_render']);
+
     // Provide a central place for modules to alter the profile forms, but
     // skip that in case the caller cares about invoking the hooks.
     // @see profile2_form().
